@@ -8,3 +8,4 @@ wtforms
 newspaper3k
 requests
 gunicorn
+lxml[html_clean]
