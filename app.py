@@ -4,10 +4,9 @@ import pandas as pd
 import re
 import os
 from flask import Flask, render_template, request, redirect, url_for
+from goose3 import Goose # Using Goose3
 from forms import NewsForm
 from config import NEWS_API_KEY, NEWS_API_URL
-# FIX: Switched from newspaper to goose3 for robust scraping
-from goose3 import Goose 
 
 # --- Application Setup ---
 app = Flask(__name__)
@@ -18,13 +17,11 @@ try:
     model = joblib.load('model.pkl')
     tfidfvect = joblib.load('tfidfvect.pkl')
 except FileNotFoundError:
-    print("Error: Model or Vectorizer files not found. Run 'train_and_save_model.py' first.")
     model = None
     tfidfvect = None
 
-# --- Text Cleaning Utility (Crucial for Prediction Consistency) ---
+# --- Text Cleaning Utility ---
 def clean_input_text(text):
-    """Normalizes input text for consistent training/prediction."""
     if not isinstance(text, str):
         text = str(text)
     text = text.lower()
@@ -34,17 +31,12 @@ def clean_input_text(text):
 
 # --- Helper Functions ---
 
-# FIX: Rewritten to use Goose3
+# Rewritten to use Goose3
 def get_article_content(url):
     """Fetches the URL and extracts clean article text and title using Goose3."""
     try:
-        # Initialize Goose3 with a browser-like User-Agent for better fetching success
         g = Goose({'browser_user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
-        
-        # Extract the article
         article = g.extract(url=url)
-        
-        # Use Goose's cleaned text property
         article_text = f"{article.title}. {article.cleaned_text}"
         
         if len(article_text) < 50 or not article.title:
@@ -57,7 +49,7 @@ def get_article_content(url):
         return None, None
 
 def check_external_sources(title):
-    # ... (Keep this function the same) ...
+    # ... (API Check Logic) ...
     if len(NEWS_API_KEY) < 20: 
         return "API Check Skipped (API Key invalid or missing)."
 
@@ -99,7 +91,7 @@ def predict_news(news_text):
     return "REAL" if prediction == 1 else "FAKE"
 
 def fetch_top_headlines():
-    # ... (Keep this function the same, it uses the NewsData.io structure) ...
+    # ... (API Fetch Logic) ...
     if len(NEWS_API_KEY) < 20: 
         return [{"title": "API Key Missing/Invalid", "url": "#", "description": "Please verify NEWS_API_KEY in config.py."}]
 
@@ -132,40 +124,28 @@ def index():
     api_check_result = None
     source_type = None
     
-    # ... (All routing logic remains the same, as it calls the fixed helper functions) ...
-    if request.method == 'GET' and 'url' in request.args:
-        user_url = request.args.get('url')
-        form.url.data = user_url
+    # FIX: Process all submissions (manual URL/Text, or Live Feed redirect) via GET parameters
+    if 'url' in request.args or 'text' in request.args:
         
-        article_text, article_title = get_article_content(user_url)
-        source_type = "URL"
-        
-        if article_text:
-            prediction = predict_news(article_text)
-            api_check_result = check_external_sources(article_title)
-        else:
-            prediction = "⚠️ Error: Could not process content from URL selected from feed."
-
-    elif form.validate_on_submit():
-        
-        if form.url.data:
-            user_url = form.url.data
+        # 1. URL Input Processing
+        if request.args.get('url'):
+            user_url = request.args.get('url')
+            form.url.data = user_url # Populate form for display
+            
             article_text, article_title = get_article_content(user_url)
             source_type = "URL"
             
-        elif form.text.data:
-            user_text = form.text.data
+        # 2. Text Input Processing
+        elif request.args.get('text'):
+            user_text = request.args.get('text')
+            form.text.data = user_text # Populate form for display
             article_text = user_text
-            article_title = user_text[:50] 
-            user_url = None
+            article_title = user_text[:50]
             source_type = "TEXT"
             
-        else:
-            prediction = "Error: Please enter a URL or news text."
-            source_type = None
-
+        # 3. Run Analysis
         if article_text and source_type:
-            prediction = predict_news(article_text) 
+            prediction = predict_news(article_text)
             
             if source_type == "URL":
                  api_check_result = check_external_sources(article_title)
@@ -173,8 +153,11 @@ def index():
                  api_check_result = "API Check Skipped (Direct text input used)."
             
         elif source_type:
-            prediction = f"⚠️ Error: Could not process content from {source_type}."
+            prediction = f"⚠️ Error: Could not process content from {source_type}. (Check URL or site security)"
             
+    # The POST method is kept in the route signature but is now ignored
+    # since all logic is handled by the unified GET flow.
+
     return render_template('index.html', 
                            form=form, 
                            prediction=prediction, 
@@ -188,6 +171,7 @@ def live_news_feed():
     if request.method == 'POST':
         selected_url = request.form.get('selected_url')
         if selected_url:
+            # FIX: Redirect now relies on the unified GET logic in index()
             return redirect(url_for('index', url=selected_url))
             
     articles = fetch_top_headlines()
