@@ -4,13 +4,13 @@ import pandas as pd
 import re
 import os
 from flask import Flask, render_template, request, redirect, url_for
-from newspaper import Article
 from forms import NewsForm
 from config import NEWS_API_KEY, NEWS_API_URL
+# FIX: Switched from newspaper to goose3 for robust scraping
+from goose3 import Goose 
 
 # --- Application Setup ---
 app = Flask(__name__)
-# IMPORTANT: Provide a strong secret key for production security
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'a_default_secure_key_for_dev') 
 
 # Load the trained model and vectorizer
@@ -22,9 +22,9 @@ except FileNotFoundError:
     model = None
     tfidfvect = None
 
-# --- NEW: Text Cleaning Utility (Crucial for Prediction Consistency) ---
+# --- Text Cleaning Utility (Crucial for Prediction Consistency) ---
 def clean_input_text(text):
-    """Normalizes text for consistent training/prediction."""
+    """Normalizes input text for consistent training/prediction."""
     if not isinstance(text, str):
         text = str(text)
     text = text.lower()
@@ -32,17 +32,20 @@ def clean_input_text(text):
     text = ' '.join(text.split())
     return text
 
-# --- Helper Functions (Unified for NewsData.io) ---
+# --- Helper Functions ---
 
+# FIX: Rewritten to use Goose3
 def get_article_content(url):
-    """Fetches the URL and extracts clean article text and title."""
+    """Fetches the URL and extracts clean article text and title using Goose3."""
     try:
-        article = Article(url, fetch_images=False, memoize_articles=False)
-        # Add User-Agent header for fetching stability
-        article.download(headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0)'})
-        article.parse()
+        # Initialize Goose3 with a browser-like User-Agent for better fetching success
+        g = Goose({'browser_user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
         
-        article_text = f"{article.title}. {article.text}"
+        # Extract the article
+        article = g.extract(url=url)
+        
+        # Use Goose's cleaned text property
+        article_text = f"{article.title}. {article.cleaned_text}"
         
         if len(article_text) < 50 or not article.title:
              return None, None 
@@ -54,8 +57,7 @@ def get_article_content(url):
         return None, None
 
 def check_external_sources(title):
-    """Searches external news sources using the NewsData.io API for corroboration."""
-    
+    # ... (Keep this function the same) ...
     if len(NEWS_API_KEY) < 20: 
         return "API Check Skipped (API Key invalid or missing)."
 
@@ -84,30 +86,26 @@ def check_external_sources(title):
     except requests.exceptions.RequestException as e:
         return f"API Check Failed: Network or API error. ({e})"
 
-# FIX: Modified to use the new cleaning function
 def predict_news(news_text):
     """Vectorizes the text and predicts using the loaded ML model."""
     if model is None or tfidfvect is None:
         return "Model Error: ML components not loaded correctly."
         
-    # --- CRITICAL FIX: Clean the input text before transformation ---
     cleaned_text = clean_input_text(news_text)
     
-    # Vectorize the input text
     news_vect = tfidfvect.transform([cleaned_text])
     prediction = model.predict(news_vect)[0]
     
     return "REAL" if prediction == 1 else "FAKE"
 
 def fetch_top_headlines():
-    """Fetches a list of recent headlines using the NewsData.io API."""
-    
+    # ... (Keep this function the same, it uses the NewsData.io structure) ...
     if len(NEWS_API_KEY) < 20: 
         return [{"title": "API Key Missing/Invalid", "url": "#", "description": "Please verify NEWS_API_KEY in config.py."}]
 
     params = {
         'apikey': NEWS_API_KEY, 
-        'q': 'technology OR finance OR politics', # Broad query for variety
+        'q': 'technology OR finance OR politics', 
         'language': 'en',
         'country': 'us,gb,in',  
         'size': 10, 
@@ -118,7 +116,6 @@ def fetch_top_headlines():
         response.raise_for_status()
         data = response.json()
         
-        # NewsData.io returns articles under the 'results' key
         return data.get('results', [])
         
     except requests.exceptions.RequestException as e:
@@ -135,7 +132,7 @@ def index():
     api_check_result = None
     source_type = None
     
-    # Handle GET request from Live News Feed selection
+    # ... (All routing logic remains the same, as it calls the fixed helper functions) ...
     if request.method == 'GET' and 'url' in request.args:
         user_url = request.args.get('url')
         form.url.data = user_url
@@ -149,7 +146,6 @@ def index():
         else:
             prediction = "⚠️ Error: Could not process content from URL selected from feed."
 
-    # Handle POST request from URL/Text submission form
     elif form.validate_on_submit():
         
         if form.url.data:
@@ -189,19 +185,15 @@ def index():
 @app.route('/live_news_feed', methods=['GET', 'POST'])
 def live_news_feed():
     
-    # Handle POST request from article selection form (redirects to index)
     if request.method == 'POST':
         selected_url = request.form.get('selected_url')
         if selected_url:
-            # Redirect to index with the URL as a query parameter
             return redirect(url_for('index', url=selected_url))
             
-    # Handle GET request (displays the feed)
     articles = fetch_top_headlines()
     
     return render_template('live_news.html', articles=articles)
 
 if __name__ == '__main__':
-    # Use environment variable for port in production
     port = int(os.environ.get('PORT', 5000)) 
     app.run(debug=True, host='0.0.0.0', port=port)

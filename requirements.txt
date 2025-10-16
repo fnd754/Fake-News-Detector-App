@@ -4,8 +4,9 @@ pandas
 scikit-learn
 joblib
 nltk
-wtforms
-newspaper3k
 requests
 gunicorn
+# Ensure lxml is using the fixed version to prevent compilation errors
 lxml[html_clean]
+goose3# CRITICAL FIX: Explicitly specify the package name as Flask-WTF
+Flask-WTF
