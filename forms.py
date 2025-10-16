@@ -1,9 +1,16 @@
 from flask_wtf import FlaskForm
-from wtforms import SubmitField, TextAreaField
-from wtforms.validators import DataRequired, Length
+from wtforms import StringField, TextAreaField, SubmitField
+from wtforms.validators import URL, Optional, Length
 
+class NewsForm(FlaskForm):
+    """Form containing fields for URL and Direct Text."""
+    
+    url = StringField('Enter News Article URL:', 
+                      validators=[Optional(), URL()])
+    
+    text = TextAreaField('OR Enter News Article Text:', 
+                         validators=[Optional(), Length(min=5, message="Text must be at least 5 characters long.")])
 
-class OriginalTextForm(FlaskForm):
-	original_text = TextAreaField('Original Text', validators=[Length(min=20, max=10000)], render_kw={'placeholder': 'Enter text here..'})
-	generate = SubmitField('Generate Text')
-	predict = SubmitField('Predict')
+    check_submit = SubmitField('Check Credibility')
+    
+    # fetch_live_news button is handled by an <a> tag in HTML now

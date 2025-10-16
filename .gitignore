@@ -1,0 +1,17 @@
+# Virtual Environment
+.venv
+venv/
+env/
+
+# Python artifacts
+__pycache__/
+*.pyc
+
+# IDE files
+.vscode/
+.idea/
+
+# Large binaries (model and vectorizer files)
+# **Crucial for Render/Deployment**
+*.pkl
+*.joblib

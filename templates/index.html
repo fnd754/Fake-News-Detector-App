@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>News Credibility Detector</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+    <style>
+        body { padding: 20px; background-color: #f8f9fa; }
+        .container { max-width: 800px; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,.05); }
+        h1 { margin-bottom: 30px; color: #007bff; }
+        .alert-danger, .alert-success { font-size: 1.25rem; }
+        .api-check { padding: 15px; border-left: 5px solid #007bff; background-color: #e9f5ff; margin-top: 20px; border-radius: 4px; }
+        .api-check h4 { color: #007bff; margin-bottom: 10px; }
+        .nav-link { cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>News Credibility Detector 🕵️‍♀️</h1>
+        
+        <ul class="nav nav-tabs" id="myTab" role="tablist">
+            <li class="nav-item">
+                <a class="nav-link active" id="input-tab" data-toggle="tab" href="#input-check" role="tab">Check News (URL / Text)</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{{ url_for('live_news_feed') }}">Live News Feed</a>
+            </li>
+        </ul>
+
+        <div class="tab-content pt-3" id="myTabContent">
+            
+            <div class="tab-pane fade show active" id="input-check" role="tabpanel">
+                <form method="POST" action="/" id="news_form">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="form-group">
+                        {{ form.url.label(class="form-control-label font-weight-bold") }}
+                        {% for error in form.url.errors %}<div class="alert alert-danger">{{ error }}</div>{% endfor %}
+                        {{ form.url(class="form-control", placeholder="Paste a News Article URL here...") }}
+                    </div>
+
+                    <div class="form-group">
+                        {{ form.text.label(class="form-control-label font-weight-bold") }}
+                        {% for error in form.text.errors %}<div class="alert alert-danger">{{ error }}</div>{% endfor %}
+                        {{ form.text(class="form-control", rows="5", placeholder="OR paste the raw article text here...") }}
+                    </div>
+                    
+                    <div class="form-group">
+                        {{ form.check_submit(class="btn btn-primary btn-lg") }}
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {% if prediction %}
+            <hr>
+            <h2>Analysis Result</h2>
+
+            {% if "Error" in prediction or "Model Error" in prediction %}
+                <div class="alert alert-warning">
+                    <strong>{{ prediction }}</strong>
+                    {% if user_url %}<p>Source: <a href="{{ user_url }}" target="_blank">{{ user_url }}</a></p>{% endif %}
+                </div>
+            {% else %}
+                
+                <div class="mb-4">
+                    {% if prediction == 'FAKE' %}
+                        <div class="alert alert-danger">
+                            <strong>Machine Learning Prediction: 🛑 FAKE NEWS</strong>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-success">
+                            <strong>Machine Learning Prediction: ✅ REAL NEWS</strong>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="api-check">
+                    <h4>External Corroboration Check:</h4>
+                    <p class="mb-1">
+                        {% if "SUCCESS" in api_check_result %}
+                            <span style="color: green; font-weight: bold;">{{ api_check_result }}</span> 🟢
+                        {% elif "WARNING" in api_check_result %}
+                            <span style="color: orange; font-weight: bold;">{{ api_check_result }}</span> 🟠
+                        {% elif "Check Skipped" in api_check_result %}
+                            <span style="color: gray;">{{ api_check_result }}</span> 
+                        {% else %}
+                            <span style="color: red; font-weight: bold;">{{ api_check_result }}</span> 🔴
+                        {% endif %}
+                    </p>
+                    <small class="text-muted">This result confirms external reporting on the article's title/topic.</small>
+                </div>
+                
+                <div class="extracted-content mt-4">
+                    <h3>Article Details:</h3>
+                    {% if user_url %}
+                        <p><strong>Source URL:</strong> <a href="{{ user_url }}" target="_blank">{{ user_url }}</a></p>
+                    {% endif %}
+                    <p><strong>Text Used for Analysis (Snippet):</strong></p>
+                    <textarea class="form-control" rows="8" readonly>{{ article_text[:1000] }}...</textarea>
+                </div>
+            {% endif %}
+
+        {% endif %}
+    </div>
+
+</body>
+</html>
