@@ -6,7 +6,7 @@ joblib
 nltk
 requests
 gunicorn
-# Ensure lxml is using the fixed version to prevent compilation errors
+# Specific versions for compatibility:
 lxml[html_clean]
-goose3# CRITICAL FIX: Explicitly specify the package name as Flask-WTF
+goose3
 Flask-WTF
